@@ -1,2 +1,0 @@
-MONGO_URI=mongodb+srv://qiksparedb:Usangwan#123@qikspare.e6ytqdk.mongodb.net/qikspare?retryWrites=true&w=majority&tls=true
-JWT_SECRET=supersecretjwtkey
