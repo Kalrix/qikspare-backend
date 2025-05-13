@@ -8,10 +8,16 @@ app = FastAPI()
 # ✅ Connect to MongoDB on startup
 app.add_event_handler("startup", connect_to_mongo)
 
-# ✅ CORS settings (allowing all for now — restrict in production)
+# ✅ Allowed frontend domains — replace/add your actual frontend URL
+origins = [
+    "https://qikspare-admin.vercel.app",  # Production frontend domain
+    "http://localhost:3000",              # Local development
+]
+
+# ✅ CORS Middleware Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: replace with allowed domains in prod
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
