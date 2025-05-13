@@ -5,25 +5,25 @@ from routes import auth, admin, invoice  # ✅ Route imports
 
 app = FastAPI()
 
-# ✅ Connect to MongoDB on startup
+# ✅ Connect to MongoDB on app startup
 app.add_event_handler("startup", connect_to_mongo)
 
-# ✅ Allowed frontend domains — replace/add your actual frontend URL
+# ✅ Allowed frontend origins — production + local (optional)
 origins = [
-    "https://qikspare-admin.vercel.app",  # Production frontend domain
-    "http://localhost:3000",              # Local development
+    "https://qikspare-admin.onrender.com",  # ✅ Production frontend
+    "http://localhost:3000",                # Optional: local dev frontend
 ]
 
-# ✅ CORS Middleware Configuration
+# ✅ CORS middleware setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,        # ⚠️ Don't use ["*"] when credentials=True
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Route registrations
-app.include_router(auth.router, prefix="/api/auth")         # for /api/auth/*
-app.include_router(admin.router, prefix="/api")             # for /api/admin/*
-app.include_router(invoice.router, prefix="/api/invoices")  # for /api/invoices/*
+# ✅ Register all routes
+app.include_router(auth.router, prefix="/api/auth")
+app.include_router(admin.router, prefix="/api")
+app.include_router(invoice.router, prefix="/api/invoices")
