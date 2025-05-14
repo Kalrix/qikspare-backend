@@ -12,7 +12,7 @@ router = APIRouter()
 
 # ---- CONFIG ----
 TWOFACTOR_API_KEY = "acd01d56-2fbd-11f0-8b17-0200cd936042"
-OTP_TEMPLATE_NAME = "QIKSPARE"  # Must match your 2Factor template name
+OTP_TEMPLATE_NAME = "QIKSPARE"
 TWOFACTOR_BASE = f"https://2factor.in/API/V1/{TWOFACTOR_API_KEY}/SMS"
 
 # -------- MODELS --------
@@ -36,6 +36,7 @@ async def request_otp(payload: RequestOtpModel):
 
     if data["Status"] != "Success":
         raise HTTPException(status_code=500, detail="Failed to send OTP")
+
     return {"message": "OTP sent successfully."}
 
 # -------- Verify OTP & Login/Register --------
@@ -43,7 +44,8 @@ async def request_otp(payload: RequestOtpModel):
 async def verify_otp(payload: VerifyOtpModel):
     db = get_database()
     phone, otp = payload.phone, payload.otp
-    role, referral_code = payload.role, payload.referral_code
+    role = payload.role
+    referral_code = payload.referral_code
 
     # Step 1: Verify OTP with 2Factor
     url = f"{TWOFACTOR_BASE}/VERIFY3/{phone}/{otp}"
@@ -54,11 +56,11 @@ async def verify_otp(payload: VerifyOtpModel):
     if data["Status"] != "Success":
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
-    # Step 2: Check if user exists
+    # Step 2: Check if user already exists
     user = await db["users"].find_one({"phone": phone})
 
     if user:
-        # ✅ Update role if not set (first login after request-otp)
+        # ✅ Patch missing role if needed
         if not user.get("role") and role != "admin":
             await db["users"].update_one(
                 {"_id": user["_id"]},
@@ -66,7 +68,7 @@ async def verify_otp(payload: VerifyOtpModel):
             )
             user["role"] = role
 
-        # 🛡️ Prevent normal user from logging in as admin
+        # 🛡️ Prevent admin impersonation
         if role == "admin" and user.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Unauthorized as admin")
 
@@ -129,7 +131,7 @@ async def verify_otp(payload: VerifyOtpModel):
     result = await db["users"].insert_one(new_user)
     user_id = result.inserted_id
 
-    # 👥 Update referral tracking
+    # 🎁 Track referral if valid
     if referred_by:
         await db["users"].update_one(
             {"referral_code": referred_by},
@@ -139,7 +141,11 @@ async def verify_otp(payload: VerifyOtpModel):
             }
         )
 
-    token_data = {"user_id": str(user_id), "phone": phone, "role": role}
+    token_data = {
+        "user_id": str(user_id),
+        "phone": phone,
+        "role": role
+    }
     return {"access_token": create_access_token(token_data)}
 
 # -------- Get Current Authenticated User --------
@@ -157,6 +163,7 @@ def get_current_user(authorization: str = Header(None)):
 async def get_profile(user=Depends(get_current_user)):
     db = get_database()
     user_id = user.get("user_id")
+
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid token")
 
