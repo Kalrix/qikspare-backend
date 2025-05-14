@@ -21,7 +21,7 @@ app.add_middleware(
 
 # ✅ Mount API Routes
 app.include_router(auth.router, prefix="/api/auth")       # For login, OTP, register
-app.include_router(admin.router, prefix="/api/admin")     # Admin APIs
+app.include_router(admin.router, prefix="/api")     # Admin APIs
 app.include_router(invoice.router, prefix="/api/invoices")# Invoice APIs
 app.include_router(user.router, prefix="/api/user")       # Profile, address management
 
