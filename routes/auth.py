@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 from database import get_database
 from utils.jwt_utils import create_access_token, decode_access_token
 from bson import ObjectId
