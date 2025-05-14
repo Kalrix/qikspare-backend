@@ -45,8 +45,10 @@ async def request_otp(payload: RequestOtpModel):
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyOtpModel):
     db = get_database()
-    phone, otp = payload.phone, payload.otp
-    role, referral_code = payload.role, payload.referral_code
+    phone = payload.phone
+    otp = payload.otp
+    role = payload.role
+    referral_code = payload.referral_code
 
     print(f"\n🔐 Verifying OTP for {phone} with role: {role}")
 
@@ -62,11 +64,9 @@ async def verify_otp(payload: VerifyOtpModel):
 
     # Step 2: Check if user already exists
     user = await db["users"].find_one({"phone": phone})
-    print("📁 Existing user found:" if user else "🆕 No existing user found.")
 
     if user:
-        print("👤 USER ID:", str(user["_id"]))
-        print("🔍 Existing role:", user.get("role"))
+        print("📁 Existing user found:", str(user["_id"]))
 
         if not user.get("role") and role != "admin":
             print(f"🛠️ Updating missing role to '{role}'")
@@ -77,7 +77,7 @@ async def verify_otp(payload: VerifyOtpModel):
             user["role"] = role
 
         if role == "admin" and user.get("role") != "admin":
-            print("❌ Admin login blocked. Current role:", user.get("role"))
+            print("❌ Admin login blocked. Stored role:", user.get("role"))
             raise HTTPException(status_code=403, detail="Unauthorized as admin")
 
         token_data = {
@@ -85,17 +85,22 @@ async def verify_otp(payload: VerifyOtpModel):
             "phone": phone,
             "role": user["role"]
         }
-        print("✅ Logging in with user:", token_data)
+        print("✅ Login successful for existing user:", token_data)
         return {"access_token": create_access_token(token_data)}
 
     # Step 3: Register new user
-    user_count = await db["users"].count_documents({})
+    # ⛔ Block duplicate if race condition happens
+    existing = await db["users"].find_one({"phone": phone})
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists. Please login.")
+
     referred_by = None
+    user_count = await db["users"].count_documents({})
 
     if role == "admin":
         if user_count == 0:
             new_ref_code = "QIKSPARE01"
-            print("🛠️ Registering first admin with referral:", new_ref_code)
+            print("🛠️ Registering first admin")
         else:
             raise HTTPException(status_code=403, detail="Admin registration not allowed from app")
     else:
@@ -104,10 +109,9 @@ async def verify_otp(payload: VerifyOtpModel):
         if referral_code:
             referrer = await db["users"].find_one({"referral_code": referral_code})
             if not referrer:
-                print("❌ Invalid referral code:", referral_code)
                 raise HTTPException(status_code=400, detail="Invalid referral code")
             referred_by = referral_code
-            print("🔗 User referred by:", referred_by)
+            print("🔗 Referred by:", referred_by)
 
     new_user = {
         "full_name": None,
