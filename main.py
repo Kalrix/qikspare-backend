@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import connect_to_mongo
-from routes import auth, admin, invoice, user_routes  # ✅ Route imports
+from routes import auth, admin, invoice, user # ✅ Route imports
 
 app = FastAPI()
 
@@ -23,5 +23,5 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth")
 app.include_router(admin.router, prefix="/api")
 app.include_router(invoice.router, prefix="/api/invoices")
-app.include_router(user_routes.router, prefix="/api/auth")
+app.include_router(user.router, prefix="/api/auth")
 
