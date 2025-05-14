@@ -38,7 +38,7 @@ async def request_otp(payload: RequestOtpModel):
         raise HTTPException(status_code=500, detail="Failed to send OTP")
     return {"message": "OTP sent successfully."}
 
-# -------- Verify OTP --------
+# -------- Verify OTP & Login/Register --------
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyOtpModel):
     db = get_database()
@@ -58,9 +58,23 @@ async def verify_otp(payload: VerifyOtpModel):
     user = await db["users"].find_one({"phone": phone})
 
     if user:
+        # ✅ Update role if not set (first login after request-otp)
+        if not user.get("role") and role != "admin":
+            await db["users"].update_one(
+                {"_id": user["_id"]},
+                {"$set": {"role": role, "updated_at": datetime.datetime.utcnow()}}
+            )
+            user["role"] = role
+
+        # 🛡️ Prevent normal user from logging in as admin
         if role == "admin" and user.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Unauthorized as admin")
-        token_data = {"user_id": str(user["_id"]), "phone": phone, "role": user["role"]}
+
+        token_data = {
+            "user_id": str(user["_id"]),
+            "phone": phone,
+            "role": user["role"]
+        }
         return {"access_token": create_access_token(token_data)}
 
     # Step 3: Register new user
@@ -115,6 +129,7 @@ async def verify_otp(payload: VerifyOtpModel):
     result = await db["users"].insert_one(new_user)
     user_id = result.inserted_id
 
+    # 👥 Update referral tracking
     if referred_by:
         await db["users"].update_one(
             {"referral_code": referred_by},
@@ -127,7 +142,7 @@ async def verify_otp(payload: VerifyOtpModel):
     token_data = {"user_id": str(user_id), "phone": phone, "role": role}
     return {"access_token": create_access_token(token_data)}
 
-# -------- Current User --------
+# -------- Get Current Authenticated User --------
 def get_current_user(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header missing")
@@ -137,6 +152,7 @@ def get_current_user(authorization: str = Header(None)):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+# -------- Get Current Profile Data --------
 @router.get("/me")
 async def get_profile(user=Depends(get_current_user)):
     db = get_database()
