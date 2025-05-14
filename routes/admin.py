@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import datetime
 
-router = APIRouter()
+router = APIRouter()  # ✅ No prefix here. Only prefix in main.py
 
 # ---------------------------
 # Auth Helper for Admin
@@ -40,6 +40,7 @@ class AdminUpdateUserModel(BaseModel):
     location: Optional[dict]
     phone: Optional[str]
     role: Optional[str]
+    referral_code: Optional[str]  # ✅ Needed for user creation
 
 # ---------------------------
 # Get All Users (Admin only)
@@ -47,9 +48,8 @@ class AdminUpdateUserModel(BaseModel):
 @router.get("/admin/users")
 async def get_all_users(user=Depends(get_admin_user)):
     db = get_database()
-    cursor = db.users.find()
     users = []
-    async for u in cursor:
+    async for u in db.users.find():
         u["_id"] = str(u["_id"])
         users.append(u)
     return {"users": users}
@@ -60,10 +60,7 @@ async def get_all_users(user=Depends(get_admin_user)):
 @router.patch("/admin/update-user/{user_id}")
 async def update_user_by_admin(user_id: str, payload: AdminUpdateUserModel, user=Depends(get_admin_user)):
     db = get_database()
-
     update_data = {k: v for k, v in payload.dict().items() if v is not None}
-    print(f"🛠️ DEBUG: Payload received for user_id={user_id}: {payload.dict()}")
-    print(f"🛠️ DEBUG: Cleaned update data: {update_data}")
 
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -103,7 +100,7 @@ async def create_user_by_admin(payload: AdminUpdateUserModel, user=Depends(get_a
     return {"message": "User created successfully", "user": new_user}
 
 # ---------------------------
-# Create User from App (Non-admin)
+# Create User from App (Non-admin only)
 # ---------------------------
 @router.post("/auth/register-user")
 async def register_user_from_app(payload: AdminUpdateUserModel, authorization: str = Header(None)):
