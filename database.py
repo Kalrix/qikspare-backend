@@ -7,11 +7,12 @@ db = None
 async def connect_to_mongo():
     global client, db
 
-    # Force SSL / TLS for production (MongoDB Atlas requires this)
-    client = AsyncIOMotorClient(MONGO_URI, tls=True, tlsAllowInvalidCertificates=False)
-    
-    # Pick the database name from the URI or hardcode it
-    db = client["qikspare"]
+    client = AsyncIOMotorClient(
+        MONGO_URI,
+        tls=True,
+        tlsAllowInvalidCertificates=False  # Set True only if using self-signed certs
+    )
+    db = client.get_default_database() or client["qikspare"]  # fallback if URI doesn’t include DB
 
 def get_database():
     global db
