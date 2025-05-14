@@ -5,12 +5,12 @@ from models.user import Address
 import datetime
 import uuid
 
-db = get_database()
-
 # --- Update User Profile ---
 async def update_user_profile(user_id: str, payload):
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid token")
+
+    db = get_database()  # ✅ Move inside the function
 
     update_fields = {k: v for k, v in payload.dict().items() if v is not None}
     if not update_fields:
@@ -28,10 +28,13 @@ async def update_user_profile(user_id: str, payload):
 
     return {"message": "Profile updated successfully"}
 
+
 # --- Add Address ---
 async def add_user_address(user_id: str, payload):
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid token")
+
+    db = get_database()  # ✅ Move inside the function
 
     new_address = Address(
         address_id=str(uuid.uuid4()),
@@ -46,6 +49,7 @@ async def add_user_address(user_id: str, payload):
         updated_at=datetime.datetime.utcnow()
     )
 
+    # 🔄 If setting as default, remove default from others
     if payload.is_default:
         await db.users.update_one(
             {"_id": ObjectId(user_id)},
@@ -57,4 +61,7 @@ async def add_user_address(user_id: str, payload):
         {"$push": {"addresses": new_address.dict()}}
     )
 
-    return {"message": "Address added successfully", "address_id": new_address.address_id}
+    return {
+        "message": "Address added successfully",
+        "address_id": new_address.address_id
+    }
