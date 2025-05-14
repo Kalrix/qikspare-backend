@@ -8,6 +8,7 @@ import datetime
 import uuid
 import httpx
 
+
 router = APIRouter()
 
 # ---- CONFIG ----
@@ -194,3 +195,17 @@ async def get_profile(user=Depends(get_current_user)):
     user_data["_id"] = str(user_data["_id"])
     print("📤 Returning user profile for:", user_id)
     return user_data
+
+# -- Model to accept from Flutter app --
+class AddAddressModel(BaseModel):
+    tag: Optional[str] = "others"
+    address_line: str
+    city: str
+    state: str
+    pincode: str
+    location: Optional[Dict[str, float]] = None
+    is_default: Optional[bool] = False
+
+@router.post("/add-address")
+async def add_address(payload: AddAddressModel, user=Depends(get_current_user)):
+    return await add_user_address(user.get("user_id"), payload)
