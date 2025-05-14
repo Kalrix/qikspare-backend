@@ -7,12 +7,11 @@ db = None
 async def connect_to_mongo():
     global client, db
 
-    client = AsyncIOMotorClient(
-        MONGO_URI,
-        tls=True,
-        tlsAllowInvalidCertificates=False  # Set True only if using self-signed certs
-    )
-    db = client.get_default_database() or client["qikspare"]  # fallback if URI doesn’t include DB
+    client = AsyncIOMotorClient(MONGO_URI, tls=True, tlsAllowInvalidCertificates=False)
+
+    # ✅ Always fallback to hardcoded DB name to avoid URI-related errors
+    db = client["qikspare"]
+    print("✅ MongoDB connected and database 'qikspare' initialized")
 
 def get_database():
     global db
