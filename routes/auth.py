@@ -29,10 +29,12 @@ class VerifyOtpModel(BaseModel):
 @router.post("/request-otp")
 async def request_otp(payload: RequestOtpModel):
     phone = payload.phone
+    print(f"📲 Requesting OTP for {phone}")
     url = f"{TWOFACTOR_BASE}/{phone}/AUTOGEN/{OTP_TEMPLATE_NAME}"
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
     data = response.json()
+    print("📡 OTP API response:", data)
 
     if data["Status"] != "Success":
         raise HTTPException(status_code=500, detail="Failed to send OTP")
@@ -44,32 +46,38 @@ async def request_otp(payload: RequestOtpModel):
 async def verify_otp(payload: VerifyOtpModel):
     db = get_database()
     phone, otp = payload.phone, payload.otp
-    role = payload.role
-    referral_code = payload.referral_code
+    role, referral_code = payload.role, payload.referral_code
+
+    print(f"\n🔐 Verifying OTP for {phone} with role: {role}")
 
     # Step 1: Verify OTP with 2Factor
     url = f"{TWOFACTOR_BASE}/VERIFY3/{phone}/{otp}"
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
     data = response.json()
+    print("✅ 2Factor OTP Verify Response:", data)
 
     if data["Status"] != "Success":
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     # Step 2: Check if user already exists
     user = await db["users"].find_one({"phone": phone})
+    print("📁 Existing user found:" if user else "🆕 No existing user found.")
 
     if user:
-        # ✅ Patch missing role if needed
+        print("👤 USER ID:", str(user["_id"]))
+        print("🔍 Existing role:", user.get("role"))
+
         if not user.get("role") and role != "admin":
+            print(f"🛠️ Updating missing role to '{role}'")
             await db["users"].update_one(
                 {"_id": user["_id"]},
                 {"$set": {"role": role, "updated_at": datetime.datetime.utcnow()}}
             )
             user["role"] = role
 
-        # 🛡️ Prevent admin impersonation
         if role == "admin" and user.get("role") != "admin":
+            print("❌ Admin login blocked. Current role:", user.get("role"))
             raise HTTPException(status_code=403, detail="Unauthorized as admin")
 
         token_data = {
@@ -77,6 +85,7 @@ async def verify_otp(payload: VerifyOtpModel):
             "phone": phone,
             "role": user["role"]
         }
+        print("✅ Logging in with user:", token_data)
         return {"access_token": create_access_token(token_data)}
 
     # Step 3: Register new user
@@ -86,15 +95,19 @@ async def verify_otp(payload: VerifyOtpModel):
     if role == "admin":
         if user_count == 0:
             new_ref_code = "QIKSPARE01"
+            print("🛠️ Registering first admin with referral:", new_ref_code)
         else:
             raise HTTPException(status_code=403, detail="Admin registration not allowed from app")
     else:
         new_ref_code = str(uuid.uuid4())[:8].upper()
+        print("🎁 Generated referral code:", new_ref_code)
         if referral_code:
             referrer = await db["users"].find_one({"referral_code": referral_code})
             if not referrer:
+                print("❌ Invalid referral code:", referral_code)
                 raise HTTPException(status_code=400, detail="Invalid referral code")
             referred_by = referral_code
+            print("🔗 User referred by:", referred_by)
 
     new_user = {
         "full_name": None,
@@ -130,8 +143,8 @@ async def verify_otp(payload: VerifyOtpModel):
 
     result = await db["users"].insert_one(new_user)
     user_id = result.inserted_id
+    print("🆕 New user created with ID:", str(user_id))
 
-    # 🎁 Track referral if valid
     if referred_by:
         await db["users"].update_one(
             {"referral_code": referred_by},
@@ -140,12 +153,15 @@ async def verify_otp(payload: VerifyOtpModel):
                 "$push": {"referral_users": str(user_id)}
             }
         )
+        print("📈 Referral stats updated for:", referred_by)
 
     token_data = {
         "user_id": str(user_id),
         "phone": phone,
         "role": role
     }
+    print("✅ Token generated for new user:", token_data)
+
     return {"access_token": create_access_token(token_data)}
 
 # -------- Get Current Authenticated User --------
@@ -172,4 +188,5 @@ async def get_profile(user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="User not found")
 
     user_data["_id"] = str(user_data["_id"])
+    print("📤 Returning user profile for:", user_id)
     return user_data
