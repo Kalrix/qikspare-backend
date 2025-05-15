@@ -7,6 +7,7 @@ from routes import (
     admin,
     invoice,
     pin_routes,
+    profile,
     user_routes
 )
 
@@ -33,3 +34,4 @@ app.include_router(admin.router, prefix="/api", tags=["Admin APIs"])
 app.include_router(invoice.router, prefix="/api/invoices", tags=["Invoices"])
 app.include_router(pin_routes.router, prefix="/api", tags=["PIN System"])
 app.include_router(user_routes.router, prefix="/api/user", tags=["User Profile & Address"])
+app.include_router(profile.router, prefix="/api/user", tags=["User Profile & Address"])
