@@ -6,6 +6,7 @@ from utils.jwt_utils import decode_access_token, create_access_token
 import datetime
 
 router = APIRouter()
+db = get_database()
 
 # ---------------------------
 # Auth Helper
@@ -21,30 +22,38 @@ def get_current_user(authorization: str = Header(None)):
 
 
 # ---------------------------
+# Helper to find and update user in correct collection
+# ---------------------------
+async def find_user_by_phone(phone: str):
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        user = await db[f"{role}_users"].find_one({"phone": phone})
+        if user:
+            return user, role
+    return None, None
+
+
+async def update_pin_by_user_id(user_id: str, new_pin: str):
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        result = await db[f"{role}_users"].update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"pin": new_pin, "updated_at": datetime.datetime.utcnow()}}
+        )
+        if result.modified_count > 0:
+            return True
+    return False
+
+
+# ---------------------------
 # Create or Update PIN
 # ---------------------------
 @router.post("/user/create-pin")
 async def create_or_update_pin(payload: CreatePinModel, user=Depends(get_current_user)):
-    """
-    Create or update a 4-digit login PIN. Requires Authorization header.
-    """
     if payload.pin != payload.confirm_pin:
         raise HTTPException(status_code=400, detail="PINs do not match")
 
-    db = get_database()
-    user_id = user.get("user_id")
+    success = await update_pin_by_user_id(user.get("user_id"), payload.pin)
 
-    result = await db["users"].update_one(
-        {"_id": ObjectId(user_id)},
-        {
-            "$set": {
-                "pin": payload.pin,
-                "updated_at": datetime.datetime.utcnow()
-            }
-        }
-    )
-
-    if result.modified_count == 0:
+    if not success:
         raise HTTPException(status_code=400, detail="Failed to set PIN")
 
     return {"message": "PIN set successfully"}
@@ -55,11 +64,7 @@ async def create_or_update_pin(payload: CreatePinModel, user=Depends(get_current
 # ---------------------------
 @router.post("/user/verify-pin")
 async def login_with_pin(payload: VerifyPinModel):
-    """
-    Login using phone number and 4-digit PIN.
-    """
-    db = get_database()
-    user = await db["users"].find_one({"phone": payload.phone})
+    user, role = await find_user_by_phone(payload.phone)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -70,37 +75,28 @@ async def login_with_pin(payload: VerifyPinModel):
     token_data = {
         "user_id": str(user["_id"]),
         "phone": user["phone"],
-        "role": user.get("role", "garage")
+        "role": role
     }
 
     return {"access_token": create_access_token(token_data)}
 
 
 # ---------------------------
-# Reset PIN via OTP (Frontend verifies OTP first)
+# Reset PIN via OTP
 # ---------------------------
 @router.post("/user/reset-pin")
 async def reset_pin_after_otp(payload: ResetPinModel):
-    """
-    Reset PIN after successful OTP verification (OTP should be validated on frontend).
-    """
     if payload.new_pin != payload.confirm_pin:
         raise HTTPException(status_code=400, detail="PINs do not match")
 
-    db = get_database()
-    user = await db["users"].find_one({"phone": payload.phone})
+    user, role = await find_user_by_phone(payload.phone)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    await db["users"].update_one(
+    await db[f"{role}_users"].update_one(
         {"phone": payload.phone},
-        {
-            "$set": {
-                "pin": payload.new_pin,
-                "updated_at": datetime.datetime.utcnow()
-            }
-        }
+        {"$set": {"pin": payload.new_pin, "updated_at": datetime.datetime.utcnow()}}
     )
 
     return {"message": "PIN reset successfully"}
