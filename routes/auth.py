@@ -24,7 +24,7 @@ class RequestOtpModel(BaseModel):
 class VerifyOtpModel(BaseModel):
     phone: str
     otp: str
-    role: str  # garage / vendor / admin / delivery
+    role: str
     referral_code: Optional[str] = None
 
 class AddAddressModel(BaseModel):
@@ -36,7 +36,7 @@ class AddAddressModel(BaseModel):
     location: Optional[Dict[str, float]] = None
     is_default: Optional[bool] = False
 
-# -------- Auth Helpers --------
+# -------- Helpers --------
 def get_current_user(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header missing")
@@ -62,7 +62,7 @@ async def get_user_by_id(user_id: str):
             return user, role
     return None, None
 
-# -------- Request OTP --------
+# -------- OTP Request --------
 @router.post("/request-otp")
 async def request_otp(payload: RequestOtpModel):
     phone = payload.phone
@@ -74,7 +74,7 @@ async def request_otp(payload: RequestOtpModel):
         raise HTTPException(status_code=500, detail="Failed to send OTP")
     return {"message": "OTP sent successfully."}
 
-# -------- Verify OTP & Login/Register --------
+# -------- Verify OTP & Register/Login --------
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyOtpModel):
     db = get_database()
@@ -92,7 +92,7 @@ async def verify_otp(payload: VerifyOtpModel):
     if response.json().get("Status") != "Success":
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    # Step 2: Existing user login
+    # Step 2: Login if user exists
     user, found_role = await find_user_by_phone(phone)
     if user:
         if role == "admin" and found_role != "admin":
@@ -104,7 +104,7 @@ async def verify_otp(payload: VerifyOtpModel):
         }
         return {"access_token": create_access_token(token_data)}
 
-    # Step 3: New user registration
+    # Step 3: Register new user
     if role == "admin":
         count = await db["admin_users"].count_documents({})
         if count > 0:
@@ -115,11 +115,11 @@ async def verify_otp(payload: VerifyOtpModel):
         new_ref_code = str(uuid.uuid4())[:8].upper()
         referred_by = None
         if referral_code:
-            ref_user, _ = await find_user_by_phone(referral_code)
+            ref_user, ref_role = await find_user_by_phone(referral_code)
             if not ref_user:
                 raise HTTPException(status_code=400, detail="Invalid referral code")
             referred_by = referral_code
-            await db[f"{_}_users"].update_one(
+            await db[f"{ref_role}_users"].update_one(
                 {"referral_code": referral_code},
                 {
                     "$inc": {"referral_count": 1},
@@ -127,9 +127,9 @@ async def verify_otp(payload: VerifyOtpModel):
                 }
             )
 
-    # Base payload for role-based schema
+    # Base payload for new user
     payload_dict = {
-        "full_name": None,
+        "full_name": "New User",  # ✅ Default to avoid Pydantic validation error
         "phone": phone,
         "role": role,
         "pin": None,
@@ -155,7 +155,7 @@ async def verify_otp(payload: VerifyOtpModel):
     }
     return {"access_token": create_access_token(token_data)}
 
-# -------- Get Logged In Profile --------
+# -------- Get Profile --------
 @router.get("/me")
 async def get_profile(user=Depends(get_current_user)):
     user_data, role = await get_user_by_id(user.get("user_id"))
@@ -171,6 +171,7 @@ async def add_address(payload: AddAddressModel, user=Depends(get_current_user)):
     db = get_database()
     user_id = user.get("user_id")
     role = user.get("role")
+
     if role == "admin":
         raise HTTPException(status_code=403, detail="Admins don't have address")
 
