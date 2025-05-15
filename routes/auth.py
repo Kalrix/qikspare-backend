@@ -10,7 +10,6 @@ import uuid
 import httpx
 
 router = APIRouter()
-db = get_database()
 
 # ---- CONFIG ----
 TWOFACTOR_API_KEY = "acd01d56-2fbd-11f0-8b17-0200cd936042"
@@ -48,6 +47,7 @@ def get_current_user(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def find_user_by_phone(phone: str):
+    db = get_database()
     for role in ROLES:
         user = await db[f"{role}_users"].find_one({"phone": phone})
         if user:
@@ -55,6 +55,7 @@ async def find_user_by_phone(phone: str):
     return None, None
 
 async def get_user_by_id(user_id: str):
+    db = get_database()
     for role in ROLES:
         user = await db[f"{role}_users"].find_one({"_id": ObjectId(user_id)})
         if user:
@@ -76,6 +77,7 @@ async def request_otp(payload: RequestOtpModel):
 # -------- Verify OTP & Login/Register --------
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyOtpModel):
+    db = get_database()
     phone = payload.phone
     role = payload.role
     referral_code = payload.referral_code
@@ -103,7 +105,6 @@ async def verify_otp(payload: VerifyOtpModel):
         return {"access_token": create_access_token(token_data)}
 
     # Step 3: New user registration
-    # -- Admin registration allowed only once
     if role == "admin":
         count = await db["admin_users"].count_documents({})
         if count > 0:
@@ -140,7 +141,6 @@ async def verify_otp(payload: VerifyOtpModel):
         "updated_at": datetime.datetime.utcnow()
     }
 
-    # Add location only if not admin
     if role != "admin":
         payload_dict["location"] = Location().dict()
         payload_dict["addresses"] = []
@@ -168,6 +168,7 @@ async def get_profile(user=Depends(get_current_user)):
 # -------- Add Address --------
 @router.post("/add-address")
 async def add_address(payload: AddAddressModel, user=Depends(get_current_user)):
+    db = get_database()
     user_id = user.get("user_id")
     role = user.get("role")
     if role == "admin":
