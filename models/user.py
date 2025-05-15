@@ -2,15 +2,15 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Literal, Union
 from datetime import datetime
 
+# ---------------------- COMMON MODELS ----------------------
 
 class Location(BaseModel):
-    address_line: Optional[str] = Field(default=None)
-    city: Optional[str] = Field(default=None)
-    state: Optional[str] = Field(default=None)
-    pincode: Optional[str] = Field(default=None)
-    latitude: Optional[float] = Field(default=None)
-    longitude: Optional[float] = Field(default=None)
-
+    address_line: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class BankDetails(BaseModel):
     account_number: Optional[str] = None
@@ -19,13 +19,14 @@ class BankDetails(BaseModel):
     beneficiary_name: Optional[str] = None
     upi_id: Optional[str] = None
 
+# ---------------------- BASE USER ----------------------
 
 class BaseUser(BaseModel):
     full_name: str
     phone: str
     email: Optional[EmailStr] = None
     role: Literal["admin", "vendor", "garage", "delivery"]
-    pin: Optional[str] = None  # 4-digit PIN instead of password
+    pin: Optional[str] = None
     referral_code: Optional[str] = None
     referred_by: Optional[str] = None
     referral_count: int = 0
@@ -33,12 +34,10 @@ class BaseUser(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-
-# --------------------- SPECIFIC USER TYPES ---------------------
+# ---------------------- SPECIFIC USER TYPES ----------------------
 
 class AdminUser(BaseUser):
     role: Literal["admin"]
-
 
 class VendorUser(BaseUser):
     role: Literal["vendor"]
@@ -55,7 +54,6 @@ class VendorUser(BaseUser):
     addresses: List[Location] = []
     bank_details: Optional[BankDetails] = None
 
-
 class GarageUser(BaseUser):
     role: Literal["garage"]
     garage_name: str
@@ -70,7 +68,6 @@ class GarageUser(BaseUser):
     location: Location
     addresses: List[Location] = []
 
-
 class DeliveryUser(BaseUser):
     role: Literal["delivery"]
     vehicle_type: str
@@ -78,15 +75,13 @@ class DeliveryUser(BaseUser):
     warehouse_assigned: Optional[str] = None
     location: Location
 
-
-# ---------------------- UPDATE VARIANTS ------------------------
+# ---------------------- UPDATE VARIANTS ----------------------
 
 class AdminUserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     pin: Optional[str] = None
-
 
 class VendorUserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -106,7 +101,6 @@ class VendorUserUpdate(BaseModel):
     addresses: Optional[List[Location]] = None
     bank_details: Optional[BankDetails] = None
 
-
 class GarageUserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
@@ -124,7 +118,6 @@ class GarageUserUpdate(BaseModel):
     location: Optional[Location] = None
     addresses: Optional[List[Location]] = None
 
-
 class DeliveryUserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
@@ -135,12 +128,20 @@ class DeliveryUserUpdate(BaseModel):
     warehouse_assigned: Optional[str] = None
     location: Optional[Location] = None
 
+# ---------------------- UNIFIED UPDATE MODEL ----------------------
 
-# ---------------------- STORAGE / UTIL -------------------------
+class UserUpdateModel(
+    AdminUserUpdate,
+    VendorUserUpdate,
+    GarageUserUpdate,
+    DeliveryUserUpdate
+):
+    pass
+
+# ---------------------- STORAGE / UTILS ----------------------
 
 class UserInDB(BaseUser):
     id: Optional[str] = Field(alias="_id")
-
 
 def create_user_model(data: dict) -> Union[AdminUser, VendorUser, GarageUser, DeliveryUser]:
     role = data.get("role")

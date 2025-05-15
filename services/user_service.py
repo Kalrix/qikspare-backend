@@ -1,70 +1,173 @@
-from bson import ObjectId
-from pymongo.collection import ReturnDocument
-from database import get_database
-from models.user import create_user_model
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Literal, Union
+from datetime import datetime
 
-db = get_database()
+# ----------------------
+# Shared Models
+# ----------------------
 
-# --------------------------
-# Create User by Role
-# --------------------------
-async def create_user_service(data: dict):
-    user = create_user_model(data)
-    role = user.role
-    result = db[f"{role}_users"].insert_one(user.dict())
-    return str(result.inserted_id)
+class Location(BaseModel):
+    address_line: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
+class BankDetails(BaseModel):
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    bank_name: Optional[str] = None
+    beneficiary_name: Optional[str] = None
+    upi_id: Optional[str] = None
 
-# --------------------------
-# Get All Users (merged from all roles)
-# --------------------------
-async def get_all_users_service():
-    all_users = []
-    for role in ["admin", "vendor", "garage", "delivery"]:
-        users = list(db[f"{role}_users"].find())
-        for user in users:
-            user["_id"] = str(user["_id"])
-            user["role"] = role
-        all_users.extend(users)
-    return all_users
+# ----------------------
+# Base User Schema
+# ----------------------
 
+class BaseUser(BaseModel):
+    full_name: str
+    phone: str
+    email: Optional[EmailStr] = None
+    role: Literal["admin", "vendor", "garage", "delivery"]
+    pin: Optional[str] = None
+    referral_code: Optional[str] = None
+    referred_by: Optional[str] = None
+    referral_count: int = 0
+    referral_users: List[str] = []
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
-# --------------------------
-# Get User by ID (across collections)
-# --------------------------
-async def get_user_by_id_service(user_id: str):
-    for role in ["admin", "vendor", "garage", "delivery"]:
-        user = db[f"{role}_users"].find_one({"_id": ObjectId(user_id)})
-        if user:
-            user["_id"] = str(user["_id"])
-            user["role"] = role
-            return user
-    return None
+# ----------------------
+# Specific User Schemas
+# ----------------------
 
+class AdminUser(BaseUser):
+    role: Literal["admin"]
 
-# --------------------------
-# Update User by ID
-# --------------------------
-async def update_user_by_id_service(user_id: str, payload: dict):
-    for role in ["admin", "vendor", "garage", "delivery"]:
-        updated = db[f"{role}_users"].find_one_and_update(
-            {"_id": ObjectId(user_id)},
-            {"$set": payload},
-            return_document=ReturnDocument.AFTER
-        )
-        if updated:
-            updated["_id"] = str(updated["_id"])
-            updated["role"] = role
-            return updated
-    return None
+class VendorUser(BaseUser):
+    role: Literal["vendor"]
+    business_name: str
+    business_type: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    distributor_size: Optional[str] = None
+    brands_carried: List[str] = []
+    category_focus: List[str] = []
+    kyc_status: Optional[str] = "optional"
+    documents: List[dict] = []
+    location: Location
+    addresses: List[Location] = []
+    bank_details: Optional[BankDetails] = None
 
+class GarageUser(BaseUser):
+    role: Literal["garage"]
+    garage_name: str
+    garage_size: Optional[str] = None
+    brands_served: List[str] = []
+    vehicle_types: List[str] = []
+    category_focus: List[str] = []
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    kyc_status: Optional[str] = "optional"
+    documents: List[dict] = []
+    location: Location
+    addresses: List[Location] = []
 
-# --------------------------
-# Delete User by ID
-# --------------------------
-async def delete_user_service(user_id: str):
-    for role in ["admin", "vendor", "garage", "delivery"]:
-        deleted = db[f"{role}_users"].delete_one({"_id": ObjectId(user_id)})
-        if deleted.deleted_count > 0:
-            return {"user_id": user_id, "role": role}
-    return None
+class DeliveryUser(BaseUser):
+    role: Literal["delivery"]
+    vehicle_type: str
+    vehicle_number: Optional[str] = None
+    warehouse_assigned: Optional[str] = None
+    location: Location
+
+# ----------------------
+# Update Models
+# ----------------------
+
+class AdminUserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    pin: Optional[str] = None
+
+class VendorUserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    pin: Optional[str] = None
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    distributor_size: Optional[str] = None
+    brands_carried: Optional[List[str]] = None
+    category_focus: Optional[List[str]] = None
+    kyc_status: Optional[str] = None
+    documents: Optional[List[dict]] = None
+    location: Optional[Location] = None
+    addresses: Optional[List[Location]] = None
+    bank_details: Optional[BankDetails] = None
+
+class GarageUserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    pin: Optional[str] = None
+    garage_name: Optional[str] = None
+    garage_size: Optional[str] = None
+    brands_served: Optional[List[str]] = None
+    vehicle_types: Optional[List[str]] = None
+    category_focus: Optional[List[str]] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    kyc_status: Optional[str] = None
+    documents: Optional[List[dict]] = None
+    location: Optional[Location] = None
+    addresses: Optional[List[Location]] = None
+
+class DeliveryUserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    pin: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    warehouse_assigned: Optional[str] = None
+    location: Optional[Location] = None
+
+# ----------------------
+# Profile Update Model (Self)
+# ----------------------
+
+class UserUpdateModel(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    garage_name: Optional[str] = None
+    business_name: Optional[str] = None
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    location: Optional[Location] = None
+    bank_details: Optional[BankDetails] = None
+
+# ----------------------
+# Storage / Utility
+# ----------------------
+
+class UserInDB(BaseUser):
+    id: Optional[str] = Field(alias="_id")
+
+def create_user_model(data: dict) -> Union[AdminUser, VendorUser, GarageUser, DeliveryUser]:
+    role = data.get("role")
+    if role == "admin":
+        return AdminUser(**data)
+    elif role == "vendor":
+        return VendorUser(**data)
+    elif role == "garage":
+        return GarageUser(**data)
+    elif role == "delivery":
+        return DeliveryUser(**data)
+    else:
+        raise ValueError("Invalid user role")
