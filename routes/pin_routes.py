@@ -1,12 +1,10 @@
 from fastapi import APIRouter, HTTPException, Header, Depends
 from bson import ObjectId
-from database import get_database
 from models.pin_models import CreatePinModel, VerifyPinModel, ResetPinModel
 from utils.jwt_utils import decode_access_token, create_access_token
 import datetime
 
 router = APIRouter()
-db = get_database()
 
 # ---------------------------
 # Auth Helper
@@ -20,19 +18,23 @@ def get_current_user(authorization: str = Header(None)):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-
 # ---------------------------
 # Helper to find and update user in correct collection
 # ---------------------------
 async def find_user_by_phone(phone: str):
+    from database import get_database
+    db = get_database()
+
     for role in ["admin", "vendor", "garage", "delivery"]:
         user = await db[f"{role}_users"].find_one({"phone": phone})
         if user:
             return user, role
     return None, None
 
-
 async def update_pin_by_user_id(user_id: str, new_pin: str):
+    from database import get_database
+    db = get_database()
+
     for role in ["admin", "vendor", "garage", "delivery"]:
         result = await db[f"{role}_users"].update_one(
             {"_id": ObjectId(user_id)},
@@ -41,7 +43,6 @@ async def update_pin_by_user_id(user_id: str, new_pin: str):
         if result.modified_count > 0:
             return True
     return False
-
 
 # ---------------------------
 # Create or Update PIN
@@ -57,7 +58,6 @@ async def create_or_update_pin(payload: CreatePinModel, user=Depends(get_current
         raise HTTPException(status_code=400, detail="Failed to set PIN")
 
     return {"message": "PIN set successfully"}
-
 
 # ---------------------------
 # Login via PIN
@@ -80,7 +80,6 @@ async def login_with_pin(payload: VerifyPinModel):
 
     return {"access_token": create_access_token(token_data)}
 
-
 # ---------------------------
 # Reset PIN via OTP
 # ---------------------------
@@ -93,6 +92,9 @@ async def reset_pin_after_otp(payload: ResetPinModel):
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    from database import get_database
+    db = get_database()
 
     await db[f"{role}_users"].update_one(
         {"phone": payload.phone},

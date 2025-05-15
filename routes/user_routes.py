@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 from pymongo.collection import ReturnDocument
+from bson import ObjectId
 
 from database import get_database
 from utils.jwt_utils import decode_access_token
@@ -18,8 +19,6 @@ from models.user import (
 )
 
 router = APIRouter()
-db = get_database()
-
 
 # --------------------------
 # Auth Helper for Admin Only
@@ -42,6 +41,7 @@ def get_admin_user(authorization: str = Header(None)):
 # --------------------------
 @router.post("/admin/create-user")
 async def create_user(user_data: dict, admin=Depends(get_admin_user)):
+    db = get_database()
     try:
         user = create_user_model(user_data)
         role = user.role
@@ -56,13 +56,14 @@ async def create_user(user_data: dict, admin=Depends(get_admin_user)):
 # --------------------------
 @router.get("/admin/users")
 async def get_all_users(admin=Depends(get_admin_user)):
+    db = get_database()
     all_users = []
     for role in ["admin", "vendor", "garage", "delivery"]:
         users = list(db[f"{role}_users"].find())
         for user in users:
             user["role"] = role
             user["_id"] = str(user["_id"])
-        all_users.extend(users)
+            all_users.append(user)
     return {"count": len(all_users), "data": all_users}
 
 
@@ -71,13 +72,12 @@ async def get_all_users(admin=Depends(get_admin_user)):
 # --------------------------
 @router.get("/admin/user/{user_id}")
 async def get_user_by_id(user_id: str, admin=Depends(get_admin_user)):
-    from bson import ObjectId
-
+    db = get_database()
     for role in ["admin", "vendor", "garage", "delivery"]:
         user = db[f"{role}_users"].find_one({"_id": ObjectId(user_id)})
         if user:
-            user["role"] = role
             user["_id"] = str(user["_id"])
+            user["role"] = role
             return user
     raise HTTPException(status_code=404, detail="User not found")
 
@@ -87,8 +87,7 @@ async def get_user_by_id(user_id: str, admin=Depends(get_admin_user)):
 # --------------------------
 @router.patch("/admin/update-user/{user_id}")
 async def update_user_by_id(user_id: str, payload: dict, admin=Depends(get_admin_user)):
-    from bson import ObjectId
-
+    db = get_database()
     for role in ["admin", "vendor", "garage", "delivery"]:
         result = db[f"{role}_users"].find_one_and_update(
             {"_id": ObjectId(user_id)},
@@ -99,7 +98,6 @@ async def update_user_by_id(user_id: str, payload: dict, admin=Depends(get_admin
             result["_id"] = str(result["_id"])
             result["role"] = role
             return {"status": "updated", "data": result}
-
     raise HTTPException(status_code=404, detail="User not found")
 
 
@@ -108,8 +106,7 @@ async def update_user_by_id(user_id: str, payload: dict, admin=Depends(get_admin
 # --------------------------
 @router.delete("/admin/user/{user_id}")
 async def delete_user(user_id: str, admin=Depends(get_admin_user)):
-    from bson import ObjectId
-
+    db = get_database()
     for role in ["admin", "vendor", "garage", "delivery"]:
         deleted = db[f"{role}_users"].delete_one({"_id": ObjectId(user_id)})
         if deleted.deleted_count > 0:
