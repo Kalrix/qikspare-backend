@@ -6,7 +6,8 @@ from utils.jwt_utils import decode_access_token
 from models.user import UserUpdateModel
 
 router = APIRouter()
-db = get_database()
+
+# ------------------ Auth Dependency ------------------
 
 def get_current_user(authorization: str = Header(None)):
     if not authorization:
@@ -17,9 +18,12 @@ def get_current_user(authorization: str = Header(None)):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+# ------------------ Update Profile ------------------
 
 @router.patch("/update-profile")
 async def update_profile(payload: UserUpdateModel, user=Depends(get_current_user)):
+    db = get_database()  # ✅ Now safe: called inside function
+
     user_id = user.get("user_id")
     role = user.get("role")
 
@@ -27,7 +31,8 @@ async def update_profile(payload: UserUpdateModel, user=Depends(get_current_user
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
 
-    result = await db[f"{role}_users"].update_one(
+    collection_name = f"{role}_users"
+    result = await db[collection_name].update_one(
         {"_id": ObjectId(user_id)},
         {"$set": update_data}
     )
