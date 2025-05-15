@@ -3,7 +3,7 @@ from database import get_database
 from utils.jwt_utils import decode_access_token
 from bson import ObjectId
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Union
 import datetime
 
 router = APIRouter()
@@ -24,36 +24,48 @@ def get_admin_user(authorization: str = Header(None)):
 # Location Model
 # ---------------------------
 class LocationModel(BaseModel):
-    # For App: lat/lng
-    lat: Optional[float]
-    lng: Optional[float]
-    # For Admin: address breakdown
     addressLine: Optional[str]
     city: Optional[str]
     state: Optional[str]
     pincode: Optional[str]
+    lat: Optional[float]
+    lng: Optional[float]
 
 # ---------------------------
 # Model for Updating / Creating User
 # ---------------------------
 class AdminUpdateUserModel(BaseModel):
     full_name: Optional[str]
+    phone: Optional[str]
     email: Optional[str]
-    business_name: Optional[str]
+    password_hash: Optional[str]
+    role: Optional[str]
+
     garage_name: Optional[str]
+    business_name: Optional[str]
     business_type: Optional[str]
     garage_size: Optional[str]
+    distributor_size: Optional[str]
+
     brands_served: Optional[List[str]]
     vehicle_types: Optional[List[str]]
-    distributor_size: Optional[str]
     brands_carried: Optional[List[str]]
     category_focus: Optional[List[str]]
+
     pan_number: Optional[str]
     gstin: Optional[str]
+    kyc_status: Optional[str]
+    documents: Optional[List[str]]
+
+    warehouse_assigned: Optional[str]
+    vehicle_type: Optional[str]
+    vehicle_number: Optional[str]
+
     location: Optional[LocationModel]
-    phone: Optional[str]
-    role: Optional[str]
     referral_code: Optional[str]
+    referred_by: Optional[str]
+    referral_count: Optional[int]
+    referral_users: Optional[List[str]]
 
 # ---------------------------
 # Get All Users (Admin only)
@@ -77,16 +89,18 @@ async def update_user_by_admin(
     user=Depends(get_admin_user),
 ):
     db = get_database()
-    update_data = {k: v for k, v in payload.dict().items() if v is not None}
+    update_data = payload.dict(exclude_unset=True)
 
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     update_data["updated_at"] = datetime.datetime.utcnow()
+
     result = await db.users.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": update_data},
     )
+
     if result.modified_count == 0:
         raise HTTPException(
             status_code=400,
@@ -105,7 +119,7 @@ async def create_user_by_admin(
     if not payload.phone or not payload.role:
         raise HTTPException(status_code=400, detail="Phone and Role are required")
 
-    new_user = {k: v for k, v in payload.dict().items() if v is not None}
+    new_user = payload.dict(exclude_unset=True)
     now = datetime.datetime.utcnow()
     new_user["created_at"] = now
     new_user["updated_at"] = now
@@ -135,7 +149,7 @@ async def register_user_from_app(
     if not payload.phone or not payload.role:
         raise HTTPException(status_code=400, detail="Phone and Role are required")
 
-    new_user = {k: v for k, v in payload.dict().items() if v is not None}
+    new_user = payload.dict(exclude_unset=True)
     now = datetime.datetime.utcnow()
     new_user["created_at"] = now
     new_user["updated_at"] = now
