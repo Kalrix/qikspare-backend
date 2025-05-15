@@ -38,10 +38,11 @@ class BaseUser(BaseModel):
 
 class AdminUser(BaseUser):
     role: Literal["admin"]
+    location: Optional[Location] = None
 
 class VendorUser(BaseUser):
     role: Literal["vendor"]
-    business_name: str
+    business_name: Optional[str] = None
     business_type: Optional[str] = None
     gstin: Optional[str] = None
     pan_number: Optional[str] = None
@@ -50,13 +51,13 @@ class VendorUser(BaseUser):
     category_focus: List[str] = []
     kyc_status: Optional[str] = "optional"
     documents: List[dict] = []
-    location: Location
+    location: Optional[Location] = None
     addresses: List[Location] = []
     bank_details: Optional[BankDetails] = None
 
 class GarageUser(BaseUser):
     role: Literal["garage"]
-    garage_name: str
+    garage_name: Optional[str] = None
     garage_size: Optional[str] = None
     brands_served: List[str] = []
     vehicle_types: List[str] = []
@@ -65,15 +66,15 @@ class GarageUser(BaseUser):
     pan_number: Optional[str] = None
     kyc_status: Optional[str] = "optional"
     documents: List[dict] = []
-    location: Location
+    location: Optional[Location] = None
     addresses: List[Location] = []
 
 class DeliveryUser(BaseUser):
     role: Literal["delivery"]
-    vehicle_type: str
+    vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
     warehouse_assigned: Optional[str] = None
-    location: Location
+    location: Optional[Location] = None
 
 # ---------------------- UPDATE VARIANTS ----------------------
 
@@ -82,6 +83,7 @@ class AdminUserUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     pin: Optional[str] = None
+    location: Optional[Location] = None
 
 class VendorUserUpdate(BaseModel):
     full_name: Optional[str] = None
