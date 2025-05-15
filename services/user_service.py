@@ -1,67 +1,70 @@
 from bson import ObjectId
-from fastapi import HTTPException
+from pymongo.collection import ReturnDocument
 from database import get_database
-from models.user import Address
-import datetime
-import uuid
+from models.user import create_user_model
 
-# --- Update User Profile ---
-async def update_user_profile(user_id: str, payload):
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Invalid token")
+db = get_database()
 
-    db = get_database()  # ✅ Move inside the function
-
-    update_fields = {k: v for k, v in payload.dict().items() if v is not None}
-    if not update_fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    update_fields["updated_at"] = datetime.datetime.utcnow()
-
-    result = await db.users.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$set": update_fields}
-    )
-
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Profile not updated (maybe same data)")
-
-    return {"message": "Profile updated successfully"}
+# --------------------------
+# Create User by Role
+# --------------------------
+async def create_user_service(data: dict):
+    user = create_user_model(data)
+    role = user.role
+    result = db[f"{role}_users"].insert_one(user.dict())
+    return str(result.inserted_id)
 
 
-# --- Add Address ---
-async def add_user_address(user_id: str, payload):
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Invalid token")
+# --------------------------
+# Get All Users (merged from all roles)
+# --------------------------
+async def get_all_users_service():
+    all_users = []
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        users = list(db[f"{role}_users"].find())
+        for user in users:
+            user["_id"] = str(user["_id"])
+            user["role"] = role
+        all_users.extend(users)
+    return all_users
 
-    db = get_database()  # ✅ Move inside the function
 
-    new_address = Address(
-        address_id=str(uuid.uuid4()),
-        tag=payload.tag,
-        address_line=payload.address_line,
-        city=payload.city,
-        state=payload.state,
-        pincode=payload.pincode,
-        location=payload.location,
-        is_default=payload.is_default,
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow()
-    )
+# --------------------------
+# Get User by ID (across collections)
+# --------------------------
+async def get_user_by_id_service(user_id: str):
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        user = db[f"{role}_users"].find_one({"_id": ObjectId(user_id)})
+        if user:
+            user["_id"] = str(user["_id"])
+            user["role"] = role
+            return user
+    return None
 
-    # 🔄 If setting as default, remove default from others
-    if payload.is_default:
-        await db.users.update_one(
+
+# --------------------------
+# Update User by ID
+# --------------------------
+async def update_user_by_id_service(user_id: str, payload: dict):
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        updated = db[f"{role}_users"].find_one_and_update(
             {"_id": ObjectId(user_id)},
-            {"$set": {"addresses.$[].is_default": False}}
+            {"$set": payload},
+            return_document=ReturnDocument.AFTER
         )
+        if updated:
+            updated["_id"] = str(updated["_id"])
+            updated["role"] = role
+            return updated
+    return None
 
-    await db.users.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$push": {"addresses": new_address.dict()}}
-    )
 
-    return {
-        "message": "Address added successfully",
-        "address_id": new_address.address_id
-    }
+# --------------------------
+# Delete User by ID
+# --------------------------
+async def delete_user_service(user_id: str):
+    for role in ["admin", "vendor", "garage", "delivery"]:
+        deleted = db[f"{role}_users"].delete_one({"_id": ObjectId(user_id)})
+        if deleted.deleted_count > 0:
+            return {"user_id": user_id, "role": role}
+    return None
