@@ -21,39 +21,40 @@ class Address(BaseModel):
 # Main User Model
 # -----------------------------------
 class User(BaseModel):
-    # Basic Identity
+    # Identity
     full_name: Optional[str] = None
-    garage_name: Optional[str] = None
-    business_name: Optional[str] = None
     phone: Optional[constr(strip_whitespace=True, min_length=10, max_length=15)] = None
     email: Optional[str] = None
     password_hash: Optional[str] = None
-    role: Optional[str] = "customer"  # customer / vendor / admin / rider / oem
+    role: Optional[str] = "customer"  # customer / garage / vendor / admin / rider / oem
 
-    # Business / Garage / Mechanic Info
+    # Garage/Vendor/Business
+    garage_name: Optional[str] = None
+    business_name: Optional[str] = None
     business_type: Optional[str] = None
     garage_size: Optional[str] = None
+    distributor_size: Optional[str] = None
+
+    # Category Specialization
     brands_served: Optional[List[str]] = None
     vehicle_types: Optional[List[str]] = None
-
-    # Vendor / OEM Specific
-    distributor_size: Optional[str] = None
     brands_carried: Optional[List[str]] = None
     category_focus: Optional[List[str]] = None
 
-    # Addresses
-    addresses: Optional[List[Address]] = None
-
-    # KYC & Compliance
+    # Compliance
     pan_number: Optional[str] = None
     gstin: Optional[str] = None
-    kyc_status: Optional[str] = "optional"
+    kyc_status: Optional[str] = "optional"  # optional / pending / verified / rejected
     documents: Optional[List[str]] = None
 
-    # Rider-Specific
+    # Rider-specific fields
     warehouse_assigned: Optional[str] = None
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
+
+    # Location & Addresses
+    location: Optional[Dict[str, float]] = None  # { "lat": float, "lng": float }
+    addresses: Optional[List[Address]] = None
 
     # Referral System
     referral_code: Optional[str] = None
@@ -61,9 +62,6 @@ class User(BaseModel):
     referral_count: Optional[int] = 0
     referral_users: Optional[List[str]] = None
 
-    # Geo Location
-    location: Optional[Dict[str, float]] = None  # { "lat": float, "lng": float }
-
-    # System Fields
+    # Meta
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
