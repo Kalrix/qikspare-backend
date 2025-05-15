@@ -5,12 +5,12 @@ from datetime import datetime
 # ---------------------- COMMON MODELS ----------------------
 
 class Location(BaseModel):
-    address_line: Optional[str] = None
+    addressLine: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 class BankDetails(BaseModel):
     account_number: Optional[str] = None
